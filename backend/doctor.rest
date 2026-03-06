@@ -1,0 +1,27 @@
+# Register a new doctor
+GET http://localhost:3000/doctor/register?pin=1234&mobile=9876543210&name=Dr%20Smith&degree=MBBS
+Content-Type: application/json
+
+###
+# Send request
+
+# Get patients for a doctor
+GET http://localhost:3000/doctor/get_patients?doctor_id=1
+Content-Type: application/json
+
+###
+# Send request
+
+# Get appointments for a doctor
+GET http://localhost:3000/doctor/get_appointments?doctor_id=1
+Content-Type: application/json
+
+###
+# Send request
+
+# Confirm an appointment
+GET http://localhost:3000/doctor/confirm_appointment?appointment_id=2
+Content-Type: application/json
+
+###
+# Send request

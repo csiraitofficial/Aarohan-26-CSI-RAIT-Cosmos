@@ -1,0 +1,30 @@
+# Register a new patient
+GET http://localhost:3000/patient/register?doctor_id=1&priority=high&name=John%20Doe
+Content-Type: application/json
+
+###
+# Send request
+
+# Set vitals for a patient
+GET http://localhost:3000/patient/set_vitals?patient_id=1&heart_rate=90&bp=120/80&steps=1000&calories=200&active_min=30&glucose=90
+Content-Type: application/json
+
+###
+# Send request
+
+# Get vitals for a patient
+GET http://localhost:3000/patient/get_vitals?patient_id=1
+Content-Type: application/json
+
+###
+# Send request
+
+# Book an appointment for a patient
+GET http://localhost:3000/patient/book_appointment?time=2026-02-21T10:00:00Z&doctor_id=1&patient_id=1
+Content-Type: application/json
+
+###
+# Send request
+
+# TEST SUCCESSFULLY COMPLETED
+# Signed by SGI-CAPP-AT2
