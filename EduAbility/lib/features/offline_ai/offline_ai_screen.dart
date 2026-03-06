@@ -4,6 +4,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:vibration/vibration.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 import '../../services/disability_provider.dart';
 import '../../services/ollama_service.dart';
@@ -419,6 +420,7 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
     final isSmall = size.width < 380;
     final colorScheme = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context)!;
+    final currentDisability = context.watch<DisabilityProvider>().disability;
 
     return Column(
       children: [
@@ -920,6 +922,9 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: TextField(
+                  keyboardType: currentDisability == DisabilityType.deafMute
+                      ? TextInputType.none
+                      : TextInputType.multiline,
                   controller: _controller,
                   decoration: InputDecoration(
                     hintText: _isConnected
@@ -935,6 +940,21 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                       vertical: isSmall ? 12 : 14,
                     ),
                   ),
+                  onTap: () {
+                    if (currentDisability == DisabilityType.deafMute) {
+                      // Force hide software keyboard
+                      SystemChannels.textInput.invokeMethod('TextInput.hide');
+                    }
+                  },
+                  onTapOutside: (_) {
+                    FocusScope.of(context).unfocus();
+                  },
+                  onChanged: (_) {
+                    if (currentDisability == DisabilityType.deafMute) {
+                      // Force it hidden again in case typing brings it up
+                      SystemChannels.textInput.invokeMethod('TextInput.hide');
+                    }
+                  },
                   enabled: _isConnected && !_isSummarizing && !_isRecording,
                   maxLines: 4,
                   minLines: 1,
