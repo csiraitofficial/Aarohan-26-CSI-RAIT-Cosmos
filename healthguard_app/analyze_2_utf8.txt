@@ -1,0 +1,13 @@
+﻿Analyzing lib...                                                
+
+   info - Unnecessary use of string interpolation - lib\features\book_appointment\doctor_detail_screen.dart:173:23 - unnecessary_string_interpolations
+   info - The 'child' argument should be last in widget constructor invocations - lib\features\dashboard\dashboard_screen.dart:75:15 - sort_child_properties_last
+   info - Don't invoke 'print' in production code - lib\services\api_service.dart:42:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\api_service.dart:46:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\health_service.dart:36:13 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\health_service.dart:41:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\health_service.dart:156:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\health_service.dart:208:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\utils\load_health_data_from_vital_service.dart:15:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\utils\load_health_data_from_vital_service.dart:16:5 - avoid_print
+
