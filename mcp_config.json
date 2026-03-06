@@ -1,0 +1,32 @@
+{
+    "mcpServers": {
+        "dart-mcp-server": {
+            "command": "dart",
+            "args": [
+                "mcp-server"
+            ],
+            "env": {}
+        },
+        "arduino": {
+            "command": "uvx",
+            "args": [
+                "arduino-mcp"
+            ],
+            "env": {
+                "ARDUINO_CLI_PATH": "C:/arduino-cli/arduino-cli.exe"
+            }
+        },
+        "docker-mcp": {
+            "command": "uvx",
+            "args": [
+                "mcp-server-docker"
+            ]
+        },
+        "hub_services": {
+            "command": "python",
+            "args": [
+                "D:/GIT/code_automata/hub/mcp_server.py"
+            ]
+        }
+    }
+}

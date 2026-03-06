@@ -1,0 +1,64 @@
+# Docker Compose for SYNAPSE
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: synapse-backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - synapse-network
+
+  hub:
+    build: ./hub
+    container_name: synapse-hub
+    ports:
+      - "81:81"
+      - "82:82"
+      - "8765:8765"
+    environment:
+      # Point to the Ollama container within the Docker network
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./hub:/app/hub
+      - ./pc_hub:/app/pc_hub
+    depends_on:
+      - backend
+      - ollama
+    networks:
+      - synapse-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: synapse-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - synapse-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+networks:
+  synapse-network:
+    driver: bridge
+
+volumes:
+  ollama_data:
