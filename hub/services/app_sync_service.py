@@ -48,7 +48,6 @@ async def broadcast_telemetry(intent, final_sentence):
 
 async def start_app_sync_server(port=82):
     """Starts the WebSocket server for the App UI."""
-    print(f"[App Sync] Starting Telemetry Server on ws://localhost:{port}...")
-    # websockets.serve returns an asynchronous context manager
-    # we don't 'await it' blocking-style here because we embed it in main_server.py
-    return await websockets.serve(telemetry_handler, "localhost", port)
+    print(f"[App Sync] Starting Telemetry Server on ws://0.0.0.0:{port}...")
+    # Bind to 0.0.0.0 so the Flutter app can connect over WiFi (not just localhost)
+    return await websockets.serve(telemetry_handler, "0.0.0.0", port)

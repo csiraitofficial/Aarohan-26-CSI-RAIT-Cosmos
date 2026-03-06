@@ -1,41 +1,150 @@
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:mobile/models/user_vitals.dart';
 import 'package:mobile/models/risk_result.dart';
 
 class ApiService {
-  /// Ordered list of backend URLs to try.
-  /// The first one that responds wins and is used for the rest of the session.
-  static const List<String> _candidates = [
+  /// Well-known candidates — probed **in parallel** for fast resolution.
+  /// Covers: WiFi router subnet, PC mobile-hotspot, loopback, emulator.
+  static const List<String> _staticCandidates = [
+    'http://192.168.5.101:3000', // PC WiFi IP (current router subnet)
+    'http://192.168.137.1:3000', // PC mobile-hotspot IP (always fixed)
+    'http://192.168.1.1:3000', // Common home-router gateway
+    'http://192.168.0.1:3000', // Common home-router gateway (alt)
     'http://localhost:3000', // Same PC (desktop / web / Windows app)
     'http://127.0.0.1:3000', // Same PC (explicit IPv4 loopback)
-    'http://10.115.118.52:3000', // PC LAN IP (same Wi-Fi)
-    'http://192.168.137.1:3000', // PC hotspot IP
     'http://10.0.2.2:3000', // Android emulator loopback
-    'https://tknz9w00-3000.inc1.devtunnels.ms', // Dev tunnel (fallback)
   ];
 
-  /// Active backend URL — resolved once by [resolveBackend].
-  static String baseUrl = _candidates.last; // default to tunnel until resolved
+  /// Final fallback when nothing on the LAN works.
+  static const String _tunnelUrl = 'https://tknz9w00-3000.inc1.devtunnels.ms';
 
-  /// Call once at app startup (e.g. in main.dart or splash screen).
-  /// Tries each candidate and locks onto the first one that responds.
+  static const int _port = 3000;
+
+  /// Active backend URL — resolved once by [resolveBackend].
+  static String baseUrl = _tunnelUrl;
+
+  /// Whether a successful resolution has happened at least once.
+  static bool _resolved = false;
+
+  /// Call once at app startup.
+  ///
+  /// 1. Probes all static IPs **in parallel** (≈2 s max).
+  /// 2. Auto-scans the device's current subnet for port 3000.
+  /// 3. Falls back to the dev-tunnel URL.
   static Future<void> resolveBackend() async {
-    for (final url in _candidates) {
-      try {
-        final response = await http
-            .get(Uri.parse('$url/'))
-            .timeout(const Duration(seconds: 3));
-        if (response.statusCode == 200) {
-          baseUrl = url;
-          print('[ApiService] Backend resolved → $url');
-          return;
-        }
-      } catch (_) {
-        // try next candidate
-      }
+    // ── Phase 1: static candidates (all in parallel, first wins) ──
+    final staticResult = await _raceProbes(_staticCandidates, timeout: 3);
+    if (staticResult != null) {
+      baseUrl = staticResult;
+      _resolved = true;
+      print('[ApiService] Backend resolved (static) → $staticResult');
+      return;
     }
-    print('[ApiService] No backend found, keeping default: $baseUrl');
+
+    // ── Phase 2: subnet scan — try every .1–.254 in parallel ──
+    final discovered = await _scanSubnets();
+    if (discovered != null) {
+      baseUrl = discovered;
+      _resolved = true;
+      print('[ApiService] Backend resolved (subnet scan) → $discovered');
+      return;
+    }
+
+    // ── Phase 3: dev tunnel fallback ──
+    if (await _isReachable(_tunnelUrl)) {
+      baseUrl = _tunnelUrl;
+      _resolved = true;
+      print('[ApiService] Backend resolved (tunnel) → $_tunnelUrl');
+      return;
+    }
+
+    print('[ApiService] ⚠ No backend found, keeping default: $baseUrl');
+  }
+
+  /// Re-run discovery. Useful when the app detects the backend is unreachable
+  /// (e.g. phone switched WiFi networks). Tries the currently cached URL
+  /// first for speed before falling back to full discovery.
+  static Future<void> reResolveBackend() async {
+    // Quick check: is the current URL still alive?
+    if (await _isReachable(baseUrl)) {
+      print('[ApiService] Re-resolve: current URL still alive → $baseUrl');
+      return;
+    }
+    print('[ApiService] Re-resolve: current URL unreachable, rediscovering…');
+    await resolveBackend();
+  }
+
+  /// Try to reach [url] with a short timeout.
+  static Future<bool> _isReachable(String url) async {
+    try {
+      final response = await http
+          .get(Uri.parse('$url/'))
+          .timeout(const Duration(seconds: 2));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Race a list of URL candidates in parallel.
+  /// Returns the first URL that responds 200, or null if none do within [timeout].
+  static Future<String?> _raceProbes(
+    List<String> urls, {
+    int timeout = 3,
+  }) async {
+    if (urls.isEmpty) return null;
+    try {
+      return await Future.any(
+        urls.map((url) => _probe(url)),
+      ).timeout(Duration(seconds: timeout), onTimeout: () => null);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Discover the backend by scanning every IPv4 subnet the device is on.
+  /// Sends requests to .1–.254 in parallel with a tight timeout.
+  static Future<String?> _scanSubnets() async {
+    try {
+      final subnets = <String>{};
+      for (final iface in await NetworkInterface.list()) {
+        for (final addr in iface.addresses) {
+          if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
+            final parts = addr.address.split('.');
+            subnets.add('${parts[0]}.${parts[1]}.${parts[2]}');
+          }
+        }
+      }
+      if (subnets.isEmpty) return null;
+
+      // Fire all 254 × N requests in parallel; first 200-OK wins.
+      final urls = <String>[];
+      for (final subnet in subnets) {
+        for (int i = 1; i <= 254; i++) {
+          urls.add('http://$subnet.$i:$_port');
+        }
+      }
+
+      return await _raceProbes(urls, timeout: 4);
+    } catch (e) {
+      print('[ApiService] Subnet scan error: $e');
+      return null;
+    }
+  }
+
+  /// Returns [url] if it responds 200, or hangs forever (cancelled by
+  /// [Future.any] once another probe wins).
+  static Future<String?> _probe(String url) async {
+    try {
+      final response = await http
+          .get(Uri.parse('$url/'))
+          .timeout(const Duration(seconds: 2));
+      if (response.statusCode == 200) return url;
+    } catch (_) {}
+    // Never complete so Future.any ignores losers.
+    return Future.delayed(const Duration(days: 1), () => null);
   }
 
   // Doctor session info
@@ -55,14 +164,27 @@ class ApiService {
   static int menstrualCycleLength = 28; // days
   static int menstrualPeriodDuration = 5; // days
 
-  /// Check if backend is reachable
+  /// Check if backend is reachable. Auto-rediscovers if the current URL is
+  /// unreachable (handles WiFi network switches).
   Future<bool> checkConnection() async {
     try {
       final uri = Uri.parse(baseUrl);
       await http.get(uri).timeout(const Duration(seconds: 3));
-      // As long as we receive any response without timing out or socket error, it's connected.
       return true;
     } catch (e) {
+      // Current URL failed — try rediscovering the backend
+      if (_resolved) {
+        print('[ApiService] Connection lost, re-resolving backend…');
+        await reResolveBackend();
+        // Check the newly resolved URL
+        try {
+          final uri = Uri.parse(baseUrl);
+          await http.get(uri).timeout(const Duration(seconds: 3));
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
       return false;
     }
   }

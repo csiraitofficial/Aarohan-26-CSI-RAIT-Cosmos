@@ -47,8 +47,8 @@ async def broadcast_messages():
         await asyncio.sleep(0.01)
 
 async def main():
-    async with websockets.serve(handler, "localhost", PORT):
-        print(f"Serial to WebSocket bridge running on ws://localhost:{PORT}")
+    async with websockets.serve(handler, "0.0.0.0", PORT):
+        print(f"Serial to WebSocket bridge running on ws://0.0.0.0:{PORT}")
         await broadcast_messages()
 
 if __name__ == "__main__":

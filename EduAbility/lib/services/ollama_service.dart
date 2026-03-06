@@ -28,36 +28,47 @@ class OllamaService {
 
   /// Check if Ollama is reachable (via backend proxy).
   /// Uses the lightweight /health endpoint first, falls back to /tags.
+  /// Auto-rediscovers the backend URL if unreachable (WiFi network switch).
   Future<bool> checkConnection() async {
-    try {
-      // Try the lightweight health endpoint first
-      final uri = Uri.parse('$_proxyBase/health');
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        lastError = null;
-        return true;
-      }
-
-      // Parse backend error for useful info
+    // Try up to 2 times: once with current URL, once after re-discovery
+    for (int attempt = 0; attempt < 2; attempt++) {
       try {
-        final body = jsonDecode(response.body);
-        lastError = body['hint'] ?? body['error'] ?? 'Status ${response.statusCode}';
-      } catch (_) {
-        lastError = 'Backend returned status ${response.statusCode}';
+        final uri = Uri.parse('$_proxyBase/health');
+        final response = await http
+            .get(uri)
+            .timeout(const Duration(seconds: 10));
+
+        if (response.statusCode == 200) {
+          lastError = null;
+          return true;
+        }
+
+        // Parse backend error for useful info
+        try {
+          final body = jsonDecode(response.body);
+          lastError =
+              body['hint'] ?? body['error'] ?? 'Status ${response.statusCode}';
+        } catch (_) {
+          lastError = 'Backend returned status ${response.statusCode}';
+        }
+        return false;
+      } on http.ClientException catch (e) {
+        lastError = 'Cannot reach backend server.\n${e.message}';
+      } catch (e) {
+        if (e.toString().contains('TimeoutException')) {
+          lastError = 'Connection timed out — is the backend running?';
+        } else {
+          lastError = 'Network error: $e';
+        }
       }
-      return false;
-    } on http.ClientException catch (e) {
-      lastError = 'Cannot reach backend server.\n${e.message}';
-      return false;
-    } catch (e) {
-      if (e.toString().contains('TimeoutException')) {
-        lastError = 'Connection timed out — is the dev tunnel active?';
-      } else {
-        lastError = 'Network error: $e';
+
+      // First attempt failed — try rediscovering backend
+      if (attempt == 0) {
+        print('[OllamaService] Health check failed, re-resolving backend…');
+        await ApiService.reResolveBackend();
       }
-      return false;
     }
+    return false;
   }
 
   /// Send a chat message to Ollama (via backend proxy) and return the response.
@@ -76,9 +87,9 @@ class OllamaService {
       'prompt': '$context\n\nStudent: $userMessage\nTutor:',
       'stream': false,
       'options': {
-        'num_predict': 256,   // cap output tokens for speed
+        'num_predict': 256, // cap output tokens for speed
         'temperature': 0.7,
-        'num_gpu': 99,        // offload all layers to GPU
+        'num_gpu': 99, // offload all layers to GPU
       },
     };
 
@@ -108,22 +119,25 @@ class OllamaService {
 
   /// Upload and summarize an educational material file (PDF or TXT).
   /// Returns the summary text, or an error string prefixed with "ERROR:" on failure.
-  Future<String?> summarizeMaterial(List<int> fileBytes, String filename) async {
+  Future<String?> summarizeMaterial(
+    List<int> fileBytes,
+    String filename,
+  ) async {
     final uri = Uri.parse('$_proxyBase/summarize');
 
     try {
       final request = http.MultipartRequest('POST', uri);
       request.files.add(
-        http.MultipartFile.fromBytes(
-          'material',
-          fileBytes,
-          filename: filename,
-        ),
+        http.MultipartFile.fromBytes('material', fileBytes, filename: filename),
       );
 
-      final response = await request.send().timeout(const Duration(seconds: 120));
+      final response = await request.send().timeout(
+        const Duration(seconds: 120),
+      );
       final responseData = await response.stream.bytesToString();
-      print('[OllamaService] Summarize response ${response.statusCode}: $responseData');
+      print(
+        '[OllamaService] Summarize response ${response.statusCode}: $responseData',
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(responseData);
@@ -137,7 +151,10 @@ class OllamaService {
         // Parse backend error for a useful message
         try {
           final data = jsonDecode(responseData);
-          lastError = data['detail'] ?? data['error'] ?? 'Status ${response.statusCode}';
+          lastError =
+              data['detail'] ??
+              data['error'] ??
+              'Status ${response.statusCode}';
         } catch (_) {
           lastError = 'Backend returned status ${response.statusCode}';
         }
