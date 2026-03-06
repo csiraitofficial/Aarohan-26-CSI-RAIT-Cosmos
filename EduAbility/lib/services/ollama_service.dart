@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:mobile/services/api_service.dart';
+import 'package:mobile/services/disability_provider.dart';
 
 /// Service to communicate with Ollama LLM **through the Node.js backend proxy**.
 /// The backend forwards requests to the local Ollama instance, so the app
@@ -71,15 +72,36 @@ class OllamaService {
     return false;
   }
 
+  static String _disabilityPromptSuffix(DisabilityType disability) {
+    switch (disability) {
+      case DisabilityType.autistic:
+        return '\n\nIMPORTANT: The student is autistic. '
+            'Use very structured, predictable responses with numbered steps. '
+            'Avoid idioms, sarcasm, metaphors, and figurative language. '
+            'Use clear, literal instructions. Keep a consistent format. '
+            'Do NOT use emojis. Start each response with a one-line summary.';
+      case DisabilityType.adhd:
+        return '\n\nIMPORTANT: The student has ADHD. '
+            'Keep responses VERY concise (under 100 words). '
+            'Use bullet points for everything. '
+            'Put the KEY TAKEAWAY in **bold** at the very top. '
+            'Break topics into tiny, focused chunks. '
+            'Use engaging, energetic language. End with a fun micro-challenge.';
+      case DisabilityType.deafMute:
+      case DisabilityType.dyslexia:
+      case DisabilityType.none:
+        return '';
+    }
+  }
+
   /// Send a chat message to Ollama (via backend proxy) and return the response.
-  Future<String> sendMessage(String userMessage) async {
+  Future<String> sendMessage(String userMessage, {DisabilityType disability = DisabilityType.none}) async {
     final uri = Uri.parse('$_proxyBase/generate');
 
-    // Prepend material context if loaded
-    String context = _systemPrompt;
+    // Build context with disability suffix and optional material context
+    String context = _systemPrompt + _disabilityPromptSuffix(disability);
     if (currentMaterialTitle != null && currentMaterialSummary != null) {
-      context =
-          '$_systemPrompt\n\n(Student is studying: $currentMaterialTitle)\nMaterial summary: $currentMaterialSummary';
+      context += '\n\n(Student is studying: $currentMaterialTitle)\nMaterial summary: $currentMaterialSummary';
     }
 
     final payload = {

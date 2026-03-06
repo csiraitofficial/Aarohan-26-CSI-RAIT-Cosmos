@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:mobile/l10n/app_localizations.dart';
+import '../../services/disability_provider.dart';
 import '../../services/ollama_service.dart';
 import '../../services/speech_service.dart';
 
@@ -27,6 +29,7 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
   bool _ttsEnabled = true;
   bool _isSummarizing = false;
   bool _isRecording = false;
+  int _questionStreak = 0;
 
   /// Periodic timer that keeps retrying while offline.
   Timer? _retryTimer;
@@ -252,11 +255,13 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
     setState(() {
       _messages.add(_ChatMessage(role: _Role.user, content: text));
       _isLoading = true;
+      _questionStreak++;
     });
     _controller.clear();
     _scrollToBottom();
 
-    final reply = await _ollama.sendMessage(text);
+    final disability = context.read<DisabilityProvider>().disability;
+    final reply = await _ollama.sendMessage(text, disability: disability);
 
     if (mounted) {
       _addBotMessage(reply);
@@ -288,6 +293,16 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
         // ── Connection banner ──────────────────────────────────────
         _buildConnectionBanner(colorScheme, l),
 
+        // ── Disability mode banner ─────────────────────────────────
+        Consumer<DisabilityProvider>(
+          builder: (context, dp, _) {
+            if (dp.disability == DisabilityType.none || dp.disability == DisabilityType.deafMute) {
+              return const SizedBox.shrink();
+            }
+            return _buildDisabilityBanner(dp.disability, colorScheme);
+          },
+        ),
+
         // ── Toolbar: Upload + TTS ──────────────────────────────────
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -304,6 +319,33 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                     vertical: 8,
                   ),
                   backgroundColor: colorScheme.primaryContainer,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Consumer<DisabilityProvider>(
+                builder: (context, dp, _) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<DisabilityType>(
+                      value: dp.disability,
+                      isDense: true,
+                      icon: Icon(Icons.accessibility_new, size: 16, color: colorScheme.onSecondaryContainer),
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSecondaryContainer),
+                      items: DisabilityType.values.map((type) {
+                        return DropdownMenuItem(
+                          value: type,
+                          child: Text(DisabilityProvider.labels[type]!),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) dp.setDisability(value);
+                      },
+                    ),
+                  ),
                 ),
               ),
               const Spacer(),
@@ -402,28 +444,115 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
               final msg = _messages[index];
               final isUser = msg.role == _Role.user;
 
-              return Align(
-                alignment: isUser
-                    ? Alignment.centerRight
-                    : Alignment.centerLeft,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSmall ? 14 : 18,
-                    vertical: isSmall ? 10 : 12,
-                  ),
-                  constraints: BoxConstraints(maxWidth: size.width * 0.78),
-                  decoration: BoxDecoration(
-                    color: isUser
-                        ? colorScheme.primaryContainer
-                        : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    msg.content,
-                    style: TextStyle(fontSize: isSmall ? 15 : 16, height: 1.4),
-                  ),
-                ),
+              return Consumer<DisabilityProvider>(
+                builder: (context, dp, _) {
+                  final dt = dp.disability;
+                  final isDyslexia = dt == DisabilityType.dyslexia;
+                  final isAutistic = dt == DisabilityType.autistic;
+                  final isAdhd = dt == DisabilityType.adhd;
+
+                  // --- Bubble color per disability ---
+                  Color bubbleColor;
+                  if (isUser) {
+                    bubbleColor = isAutistic
+                        ? const Color(0xFFB2DFDB) // soft teal for autistic
+                        : colorScheme.primaryContainer;
+                  } else {
+                    if (isDyslexia) {
+                      bubbleColor = const Color(0xFFFFF8E1); // warm cream
+                    } else if (isAutistic) {
+                      bubbleColor = const Color(0xFFE0F2F1); // very soft teal
+                    } else if (isAdhd) {
+                      bubbleColor = const Color(0xFFF3E5F5); // light purple focus
+                    } else {
+                      bubbleColor = Colors.grey[200]!;
+                    }
+                  }
+
+                  // --- Text style per disability ---
+                  TextStyle msgStyle;
+                  if (isDyslexia) {
+                    msgStyle = TextStyle(
+                      fontSize: isSmall ? 18 : 20,
+                      height: 2.0,
+                      letterSpacing: 1.5,
+                      wordSpacing: 4.0,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF2E2E2E),
+                    );
+                  } else if (isAutistic) {
+                    msgStyle = TextStyle(
+                      fontSize: isSmall ? 15 : 16,
+                      height: 1.6,
+                      letterSpacing: 0.3,
+                      color: const Color(0xFF37474F),
+                    );
+                  } else if (isAdhd) {
+                    msgStyle = TextStyle(
+                      fontSize: isSmall ? 14 : 15,
+                      height: 1.5,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF4A148C),
+                    );
+                  } else {
+                    msgStyle = TextStyle(
+                      fontSize: isSmall ? 15 : 16,
+                      height: 1.4,
+                    );
+                  }
+
+                  return Align(
+                    alignment: isUser
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: Container(
+                      margin: EdgeInsets.symmetric(
+                        vertical: isAutistic ? 10 : 6,
+                      ),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDyslexia ? 20 : (isSmall ? 14 : 18),
+                        vertical: isDyslexia ? 16 : (isSmall ? 10 : 12),
+                      ),
+                      constraints: BoxConstraints(maxWidth: size.width * 0.78),
+                      decoration: BoxDecoration(
+                        color: bubbleColor,
+                        borderRadius: BorderRadius.circular(
+                          isAutistic ? 8 : 16, // squared corners for predictability
+                        ),
+                        border: isAutistic
+                            ? Border.all(color: const Color(0xFF80CBC4), width: 1)
+                            : isAdhd
+                                ? Border.all(color: const Color(0xFFCE93D8), width: 1.5)
+                                : null,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ADHD: show a colored "KEY" badge on assistant messages
+                          if (isAdhd && !isUser)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF7B1FA2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'FOCUS',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ),
+                          Text(msg.content, style: msgStyle),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),
@@ -531,6 +660,73 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
       backgroundColor: colorScheme.secondaryContainer,
       side: BorderSide(color: colorScheme.outline, width: 0.5),
     );
+  }
+
+  Widget _buildDisabilityBanner(DisabilityType dt, ColorScheme colorScheme) {
+    switch (dt) {
+      case DisabilityType.autistic:
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+          color: const Color(0xFFE0F2F1),
+          child: Row(
+            children: [
+              Icon(Icons.spa, size: 16, color: Colors.teal.shade700),
+              const SizedBox(width: 8),
+              Text(
+                'Calm Mode Active — Structured responses enabled',
+                style: TextStyle(fontSize: 12, color: Colors.teal.shade800),
+              ),
+            ],
+          ),
+        );
+      case DisabilityType.adhd:
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+          color: const Color(0xFFF3E5F5),
+          child: Row(
+            children: [
+              Icon(Icons.bolt, size: 16, color: Colors.purple.shade700),
+              const SizedBox(width: 8),
+              Text(
+                'Focus Mode Active',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.purple.shade800),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade700,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$_questionStreak Q${_questionStreak == 1 ? '' : 's'} asked!',
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        );
+      case DisabilityType.dyslexia:
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+          color: const Color(0xFFFFF8E1),
+          child: Row(
+            children: [
+              Icon(Icons.text_fields, size: 16, color: Colors.orange.shade700),
+              const SizedBox(width: 8),
+              Text(
+                'Dyslexia-Friendly Mode — Enhanced readability',
+                style: TextStyle(fontSize: 12, color: Colors.orange.shade800, letterSpacing: 0.5),
+              ),
+            ],
+          ),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Widget _buildConnectionBanner(ColorScheme colorScheme, AppLocalizations l) {

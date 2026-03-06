@@ -10,6 +10,7 @@ import 'package:mobile/features/auth/role_selection_screen.dart';
 import 'package:mobile/features/auth/signup_screen.dart';
 import 'package:mobile/features/dashboard/dashboard_screen.dart';
 import 'package:mobile/services/api_service.dart';
+import 'package:mobile/services/disability_provider.dart';
 import 'package:mobile/services/locale_provider.dart';
 import 'features/auth/doctor_login_screen.dart';
 import 'features/auth/doctor_signup_screen.dart';
@@ -21,10 +22,20 @@ void main() async {
   await ApiService.resolveBackend();
 
   final localeProvider = LocaleProvider();
-  await localeProvider.loadSavedLocale();
+  final disabilityProvider = DisabilityProvider();
+  await Future.wait([
+    localeProvider.loadSavedLocale(),
+    disabilityProvider.loadSavedDisability(),
+  ]);
 
   runApp(
-    ChangeNotifierProvider.value(value: localeProvider, child: const MyApp()),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: localeProvider),
+        ChangeNotifierProvider.value(value: disabilityProvider),
+      ],
+      child: const MyApp(),
+    ),
   );
 }
 
