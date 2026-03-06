@@ -470,9 +470,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<Widget> get _screens => [
-    _buildDashboardHome(),
-    const VitalsScreen(),
     const SignLanguageScreen(),
+    VitalsScreen(onTestEmergency: _showVitalsSimulator),
     const OfflineAiScreen(),
     const ProfileScreen(),
   ];
@@ -575,223 +574,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildDashboardHome() {
-    final size = MediaQuery.of(context).size;
-    final isSmallScreen = size.width < 360;
-    final l = AppLocalizations.of(context)!;
-
-    return RefreshIndicator(
-      onRefresh: _fetchVitals,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_isLoading) const LinearProgressIndicator(),
-            Text(
-              _studentGreeting(l),
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: isSmallScreen ? 22 : 26,
-              ),
-            ),
-            SizedBox(height: isSmallScreen ? 4 : 6),
-            Text(
-              '${l.healthSnapshot} • ${DateTime.now().toString().substring(0, 10)}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-                fontSize: isSmallScreen ? 14 : 16,
-              ),
-            ),
-            SizedBox(height: isSmallScreen ? 20 : 24),
-
-            // ── Emergency Alert Testing card ────────────────────────
-            InkWell(
-              onTap: _showVitalsSimulator,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.science, color: Colors.red.shade700, size: 28),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l.testEmergencyAlert,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: Colors.red.shade800,
-                            ),
-                          ),
-                          Text(
-                            l.simulateVitals,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.red.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: Colors.red.shade400),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Vitals grid
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.05, // responsive tall cards
-              children: [
-                _VitalCard(
-                  title: l.heartRate,
-                  value: _vitals?.latestHeartRate ?? 'N/A',
-                  icon: Icons.favorite,
-                  color: Colors.red,
-                ),
-                _VitalCard(
-                  title: l.bp,
-                  value: _vitals?.latestBloodPressure ?? 'N/A',
-                  icon: Icons.speed,
-                  color: Colors.blue,
-                ),
-                _VitalCard(
-                  title: l.steps,
-                  value: _vitals != null ? '${_vitals!.todaySteps}' : 'N/A',
-                  icon: Icons.directions_walk,
-                  color: Colors.teal,
-                ),
-                _VitalCard(
-                  title: l.calories,
-                  value: _vitals != null
-                      ? _vitals!.todayCalories.toStringAsFixed(0)
-                      : 'N/A',
-                  icon: Icons.local_fire_department,
-                  color: Colors.orange,
-                ),
-                _VitalCard(
-                  title: l.activeMin,
-                  value: _vitals != null
-                      ? '${_vitals!.todayActiveMinutes}'
-                      : 'N/A',
-                  icon: Icons.timer,
-                  color: Colors.green,
-                ),
-                _VitalCard(
-                  title: l.glucose,
-                  value: _vitals?.latestGlucose ?? 'N/A',
-                  icon: Icons.bloodtype,
-                  color: Colors.purple,
-                ),
-                _VitalCard(
-                  title: l.spo2,
-                  value: _vitals?.latestSpo2 ?? 'N/A',
-                  icon: Icons.air,
-                  color: Colors.cyan,
-                ),
-                _VitalCard(
-                  title: l.stress,
-                  value: _vitals?.latestStress ?? 'N/A',
-                  icon: Icons.psychology,
-                  color: Colors.amber,
-                ),
-              ],
-            ),
-            SizedBox(height: size.height * 0.04),
-          ],
-        ),
-      ),
-    );
-  }
-
   String _getTitleForIndex(int index, AppLocalizations l) {
     switch (index) {
       case 0:
-        return AppConstants.appName;
+        return l.signLanguage;
       case 1:
         return l.vitals;
       case 2:
-        return l.signLanguage;
-      case 3:
         return l.offlineAi;
-      case 4:
+      case 3:
         return l.profile;
       default:
         return AppConstants.appName;
     }
-  }
-}
-
-// VitalCard (responsive)
-class _VitalCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _VitalCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isSmallScreen = size.width < 360;
-    return Card(
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: isSmallScreen ? 32 : 36, color: color),
-            SizedBox(height: isSmallScreen ? 8 : 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: isSmallScreen ? 14 : 15,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            SizedBox(height: isSmallScreen ? 6 : 8),
-            FittedBox(
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 20 : 22,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

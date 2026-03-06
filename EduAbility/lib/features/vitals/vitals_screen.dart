@@ -4,7 +4,9 @@ import '../../services/health_service.dart';
 import '../../models/user_vitals.dart';
 
 class VitalsScreen extends StatefulWidget {
-  const VitalsScreen({super.key});
+  final VoidCallback? onTestEmergency;
+
+  const VitalsScreen({super.key, this.onTestEmergency});
 
   @override
   State<VitalsScreen> createState() => _VitalsScreenState();
@@ -98,6 +100,53 @@ class _VitalsScreenState extends State<VitalsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  if (widget.onTestEmergency != null) ...[
+                    InkWell(
+                      onTap: widget.onTestEmergency,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.science, color: Colors.red.shade700, size: 28),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l.testEmergencyAlert,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: Colors.red.shade800,
+                                    ),
+                                  ),
+                                  Text(
+                                    l.simulateVitals,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.red.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, color: Colors.red.shade400),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   Text(
                     l.dailyStats,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
