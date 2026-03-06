@@ -117,14 +117,52 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
   }
 
   void _addBotMessage(String text) {
-    setState(() {
-      _messages.add(_ChatMessage(role: _Role.assistant, content: text));
-    });
-    _scrollToBottom();
+    if (text.isEmpty) return;
+
     // Auto-read if TTS is enabled - split long text for better performance
     if (_ttsEnabled) {
       _speakFullText(text);
     }
+
+    // Add empty message first and capture its index
+    setState(() {
+      _messages.add(const _ChatMessage(role: _Role.assistant, content: ''));
+    });
+    final messageIndex = _messages.length - 1;
+
+    // Split into chunks (words + trailing whitespace) for a natural typing stream
+    final chunks = <String>[];
+    String currentChunk = '';
+    for (int i = 0; i < text.length; i++) {
+      currentChunk += text[i];
+      if (text[i].trim().isEmpty) {
+        chunks.add(currentChunk);
+        currentChunk = '';
+      }
+    }
+    if (currentChunk.isNotEmpty) chunks.add(currentChunk);
+
+    int chunkIndex = 0;
+
+    Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (!mounted || messageIndex >= _messages.length) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() {
+        _messages[messageIndex] = _ChatMessage(
+          role: _Role.assistant,
+          content: _messages[messageIndex].content + chunks[chunkIndex],
+        );
+      });
+      _scrollToBottom();
+
+      chunkIndex++;
+      if (chunkIndex >= chunks.length) {
+        timer.cancel();
+      }
+    });
   }
 
   /// Read text using TTS, splitting into chunks if necessary
@@ -292,7 +330,9 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
           Vibration.vibrate(pattern: [0, 300, 200, 300, 200, 500]);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Great focus! Session $_pomodoroSessions complete. Take a break!'),
+              content: Text(
+                'Great focus! Session $_pomodoroSessions complete. Take a break!',
+              ),
               backgroundColor: Colors.purple.shade700,
               duration: const Duration(seconds: 5),
             ),
@@ -398,7 +438,8 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
         // ── Autistic routine tracker ────────────────────────────────
         Consumer<DisabilityProvider>(
           builder: (context, dp, _) {
-            if (dp.disability != DisabilityType.autistic) return const SizedBox.shrink();
+            if (dp.disability != DisabilityType.autistic)
+              return const SizedBox.shrink();
             return _buildAutisticRoutine();
           },
         ),
@@ -433,8 +474,15 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                     child: DropdownButton<DisabilityType>(
                       value: dp.disability,
                       isDense: true,
-                      icon: Icon(Icons.accessibility_new, size: 16, color: colorScheme.onSecondaryContainer),
-                      style: TextStyle(fontSize: 12, color: colorScheme.onSecondaryContainer),
+                      icon: Icon(
+                        Icons.accessibility_new,
+                        size: 16,
+                        color: colorScheme.onSecondaryContainer,
+                      ),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSecondaryContainer,
+                      ),
                       items: DisabilityType.values.map((type) {
                         return DropdownMenuItem(
                           value: type,
@@ -509,232 +557,271 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
           child: Stack(
             children: [
               ListView.builder(
-            controller: _scrollController,
-            padding: EdgeInsets.symmetric(
-              horizontal: isSmall ? 10 : 14,
-              vertical: 12,
-            ),
-            itemCount: _messages.length + (_isLoading ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index == _messages.length && _isLoading) {
-                return Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        l.thinking,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              final msg = _messages[index];
-              final isUser = msg.role == _Role.user;
-
-              return Consumer<DisabilityProvider>(
-                builder: (context, dp, _) {
-                  final dt = dp.disability;
-                  final isDyslexia = dt == DisabilityType.dyslexia;
-                  final isAutistic = dt == DisabilityType.autistic;
-                  final isAdhd = dt == DisabilityType.adhd;
-                  final isDeafMute = dt == DisabilityType.deafMute;
-
-                  // --- Bubble color per disability ---
-                  Color bubbleColor;
-                  if (isUser) {
-                    bubbleColor = isAutistic
-                        ? const Color(0xFFB2DFDB)
-                        : colorScheme.primaryContainer;
-                  } else {
-                    if (isDyslexia) {
-                      bubbleColor = const Color(0xFFFFF8E1);
-                    } else if (isAutistic) {
-                      bubbleColor = const Color(0xFFE0F2F1);
-                    } else if (isAdhd) {
-                      bubbleColor = const Color(0xFFF3E5F5);
-                    } else if (isDeafMute) {
-                      bubbleColor = const Color(0xFFE3F2FD);
-                    } else {
-                      bubbleColor = Colors.grey[200]!;
-                    }
-                  }
-
-                  // --- Text style per disability ---
-                  TextStyle msgStyle;
-                  if (isDyslexia) {
-                    msgStyle = TextStyle(
-                      fontSize: isSmall ? 18 : 20,
-                      height: 2.0,
-                      letterSpacing: 1.5,
-                      wordSpacing: 4.0,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF2E2E2E),
-                    );
-                  } else if (isAutistic) {
-                    msgStyle = TextStyle(
-                      fontSize: isSmall ? 15 : 16,
-                      height: 1.6,
-                      letterSpacing: 0.3,
-                      color: const Color(0xFF37474F),
-                    );
-                  } else if (isAdhd) {
-                    msgStyle = TextStyle(
-                      fontSize: isSmall ? 14 : 15,
-                      height: 1.5,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFF4A148C),
-                    );
-                  } else {
-                    msgStyle = TextStyle(
-                      fontSize: isSmall ? 15 : 16,
-                      height: 1.4,
-                    );
-                  }
-
-                  final signExpanded = _expandedSignBubbles.contains(index);
-
-                  return Align(
-                    alignment: isUser
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: Container(
-                      margin: EdgeInsets.symmetric(
-                        vertical: isAutistic ? 10 : 6,
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isDyslexia ? 20 : (isSmall ? 14 : 18),
-                        vertical: isDyslexia ? 16 : (isSmall ? 10 : 12),
-                      ),
-                      constraints: BoxConstraints(maxWidth: size.width * 0.78),
-                      decoration: BoxDecoration(
-                        color: bubbleColor,
-                        borderRadius: BorderRadius.circular(
-                          isAutistic ? 8 : 16,
-                        ),
-                        border: isAutistic
-                            ? Border.all(color: const Color(0xFF80CBC4), width: 1)
-                            : isAdhd
-                                ? Border.all(color: const Color(0xFFCE93D8), width: 1.5)
-                                : isDeafMute && !isUser
-                                    ? Border.all(color: const Color(0xFF90CAF9), width: 1)
-                                    : null,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                controller: _scrollController,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSmall ? 10 : 14,
+                  vertical: 12,
+                ),
+                itemCount: _messages.length + (_isLoading ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == _messages.length && _isLoading) {
+                    return Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
                         children: [
-                          // ADHD: FOCUS badge
-                          if (isAdhd && !isUser)
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 6),
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF7B1FA2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                'FOCUS',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.primary,
                             ),
-                          Text(msg.content, style: msgStyle),
-
-                          // Dyslexia: per-bubble TTS button
-                          if (isDyslexia && !isUser)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: GestureDetector(
-                                onTap: () => _speakFullText(msg.content),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.shade100,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.volume_up, size: 14, color: Colors.orange.shade700),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Read Aloud',
-                                        style: TextStyle(fontSize: 11, color: Colors.orange.shade700, fontWeight: FontWeight.w600),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            l.thinking,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
                             ),
-
-                          // Deaf-Mute: Fingerspell toggle
-                          if (isDeafMute && !isUser) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    if (signExpanded) {
-                                      _expandedSignBubbles.remove(index);
-                                    } else {
-                                      _expandedSignBubbles.add(index);
-                                    }
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: signExpanded ? Colors.blue.shade600 : Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.sign_language, size: 14,
-                                        color: signExpanded ? Colors.white : Colors.blue.shade700),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        signExpanded ? 'Hide Signs' : 'Fingerspell',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: signExpanded ? Colors.white : Colors.blue.shade700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            if (signExpanded)
-                              _buildFingerspellRow(msg.content),
-                          ],
+                          ),
                         ],
                       ),
-                    ),
+                    );
+                  }
+
+                  final msg = _messages[index];
+                  final isUser = msg.role == _Role.user;
+
+                  return Consumer<DisabilityProvider>(
+                    builder: (context, dp, _) {
+                      final dt = dp.disability;
+                      final isDyslexia = dt == DisabilityType.dyslexia;
+                      final isAutistic = dt == DisabilityType.autistic;
+                      final isAdhd = dt == DisabilityType.adhd;
+                      final isDeafMute = dt == DisabilityType.deafMute;
+
+                      // --- Bubble color per disability ---
+                      Color bubbleColor;
+                      if (isUser) {
+                        bubbleColor = isAutistic
+                            ? const Color(0xFFB2DFDB)
+                            : colorScheme.primaryContainer;
+                      } else {
+                        if (isDyslexia) {
+                          bubbleColor = const Color(0xFFFFF8E1);
+                        } else if (isAutistic) {
+                          bubbleColor = const Color(0xFFE0F2F1);
+                        } else if (isAdhd) {
+                          bubbleColor = const Color(0xFFF3E5F5);
+                        } else if (isDeafMute) {
+                          bubbleColor = const Color(0xFFE3F2FD);
+                        } else {
+                          bubbleColor = Colors.grey[200]!;
+                        }
+                      }
+
+                      // --- Text style per disability ---
+                      TextStyle msgStyle;
+                      if (isDyslexia) {
+                        msgStyle = TextStyle(
+                          fontSize: isSmall ? 18 : 20,
+                          height: 2.0,
+                          letterSpacing: 1.5,
+                          wordSpacing: 4.0,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF2E2E2E),
+                        );
+                      } else if (isAutistic) {
+                        msgStyle = TextStyle(
+                          fontSize: isSmall ? 15 : 16,
+                          height: 1.6,
+                          letterSpacing: 0.3,
+                          color: const Color(0xFF37474F),
+                        );
+                      } else if (isAdhd) {
+                        msgStyle = TextStyle(
+                          fontSize: isSmall ? 14 : 15,
+                          height: 1.5,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF4A148C),
+                        );
+                      } else {
+                        msgStyle = TextStyle(
+                          fontSize: isSmall ? 15 : 16,
+                          height: 1.4,
+                        );
+                      }
+
+                      final signExpanded = _expandedSignBubbles.contains(index);
+
+                      return Align(
+                        alignment: isUser
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          margin: EdgeInsets.symmetric(
+                            vertical: isAutistic ? 10 : 6,
+                          ),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isDyslexia ? 20 : (isSmall ? 14 : 18),
+                            vertical: isDyslexia ? 16 : (isSmall ? 10 : 12),
+                          ),
+                          constraints: BoxConstraints(
+                            maxWidth: size.width * 0.78,
+                          ),
+                          decoration: BoxDecoration(
+                            color: bubbleColor,
+                            borderRadius: BorderRadius.circular(
+                              isAutistic ? 8 : 16,
+                            ),
+                            border: isAutistic
+                                ? Border.all(
+                                    color: const Color(0xFF80CBC4),
+                                    width: 1,
+                                  )
+                                : isAdhd
+                                ? Border.all(
+                                    color: const Color(0xFFCE93D8),
+                                    width: 1.5,
+                                  )
+                                : isDeafMute && !isUser
+                                ? Border.all(
+                                    color: const Color(0xFF90CAF9),
+                                    width: 1,
+                                  )
+                                : null,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // ADHD: FOCUS badge
+                              if (isAdhd && !isUser)
+                                Container(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF7B1FA2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Text(
+                                    'FOCUS',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ),
+                              Text(msg.content, style: msgStyle),
+
+                              // Dyslexia: per-bubble TTS button
+                              if (isDyslexia && !isUser)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: GestureDetector(
+                                    onTap: () => _speakFullText(msg.content),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade100,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.volume_up,
+                                            size: 14,
+                                            color: Colors.orange.shade700,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Read Aloud',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.orange.shade700,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                              // Deaf-Mute: Fingerspell toggle
+                              if (isDeafMute && !isUser) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        if (signExpanded) {
+                                          _expandedSignBubbles.remove(index);
+                                        } else {
+                                          _expandedSignBubbles.add(index);
+                                        }
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: signExpanded
+                                            ? Colors.blue.shade600
+                                            : Colors.blue.shade50,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.sign_language,
+                                            size: 14,
+                                            color: signExpanded
+                                                ? Colors.white
+                                                : Colors.blue.shade700,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            signExpanded
+                                                ? 'Hide Signs'
+                                                : 'Fingerspell',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: signExpanded
+                                                  ? Colors.white
+                                                  : Colors.blue.shade700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (signExpanded)
+                                  _buildFingerspellRow(msg.content),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
-              );
-            },
-          ),
+              ),
               // ── Reading ruler overlay (Dyslexia) ──
               if (_readingRulerOn)
                 Positioned(
@@ -744,7 +831,8 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                   child: GestureDetector(
                     onVerticalDragUpdate: (details) {
                       setState(() {
-                        _rulerPositionY = (_rulerPositionY + details.delta.dy).clamp(0.0, 500.0);
+                        _rulerPositionY = (_rulerPositionY + details.delta.dy)
+                            .clamp(0.0, 500.0);
                       });
                     },
                     child: Container(
@@ -752,8 +840,14 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                       decoration: BoxDecoration(
                         color: Colors.orange.withValues(alpha: 0.15),
                         border: Border(
-                          top: BorderSide(color: Colors.orange.shade400, width: 2),
-                          bottom: BorderSide(color: Colors.orange.shade400, width: 2),
+                          top: BorderSide(
+                            color: Colors.orange.shade400,
+                            width: 2,
+                          ),
+                          bottom: BorderSide(
+                            color: Colors.orange.shade400,
+                            width: 2,
+                          ),
                         ),
                       ),
                       child: Center(
@@ -1015,16 +1109,25 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
               const SizedBox(width: 6),
               Text(
                 'Focus',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.purple.shade800),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.purple.shade800,
+                ),
               ),
               const SizedBox(width: 10),
               // Pomodoro timer
               GestureDetector(
                 onTap: _pomodoroRunning ? _pausePomodoro : _startPomodoro,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: _pomodoroRunning ? Colors.purple.shade700 : Colors.purple.shade100,
+                    color: _pomodoroRunning
+                        ? Colors.purple.shade700
+                        : Colors.purple.shade100,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -1033,7 +1136,9 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                       Icon(
                         _pomodoroRunning ? Icons.pause : Icons.play_arrow,
                         size: 14,
-                        color: _pomodoroRunning ? Colors.white : Colors.purple.shade700,
+                        color: _pomodoroRunning
+                            ? Colors.white
+                            : Colors.purple.shade700,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -1042,7 +1147,9 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           fontFamily: 'monospace',
-                          color: _pomodoroRunning ? Colors.white : Colors.purple.shade800,
+                          color: _pomodoroRunning
+                              ? Colors.white
+                              : Colors.purple.shade800,
                         ),
                       ),
                     ],
@@ -1052,7 +1159,11 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
               const SizedBox(width: 4),
               GestureDetector(
                 onTap: _resetPomodoro,
-                child: Icon(Icons.refresh, size: 16, color: Colors.purple.shade400),
+                child: Icon(
+                  Icons.refresh,
+                  size: 16,
+                  color: Colors.purple.shade400,
+                ),
               ),
               const Spacer(),
               // Refocus buzz toggle
@@ -1071,9 +1182,14 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                 },
                 child: Container(
                   margin: const EdgeInsets.only(right: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: _refocusBuzzEnabled ? Colors.purple.shade600 : Colors.purple.shade100,
+                    color: _refocusBuzzEnabled
+                        ? Colors.purple.shade600
+                        : Colors.purple.shade100,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -1082,13 +1198,17 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                       Icon(
                         Icons.vibration,
                         size: 12,
-                        color: _refocusBuzzEnabled ? Colors.white : Colors.purple.shade400,
+                        color: _refocusBuzzEnabled
+                            ? Colors.white
+                            : Colors.purple.shade400,
                       ),
                       const SizedBox(width: 3),
                       Text(
                         'Buzz',
                         style: TextStyle(
-                          color: _refocusBuzzEnabled ? Colors.white : Colors.purple.shade400,
+                          color: _refocusBuzzEnabled
+                              ? Colors.white
+                              : Colors.purple.shade400,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1100,14 +1220,21 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
               if (_pomodoroSessions > 0)
                 Container(
                   margin: const EdgeInsets.only(right: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.deepPurple.shade600,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     'S$_pomodoroSessions',
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               Container(
@@ -1118,7 +1245,11 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                 ),
                 child: Text(
                   '$_questionStreak Q${_questionStreak == 1 ? '' : 's'}',
-                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -1136,15 +1267,24 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
               Expanded(
                 child: Text(
                   'Dyslexia-Friendly Mode',
-                  style: TextStyle(fontSize: 12, color: Colors.orange.shade800, letterSpacing: 0.5),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.orange.shade800,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
               GestureDetector(
                 onTap: () => setState(() => _readingRulerOn = !_readingRulerOn),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color: _readingRulerOn ? Colors.orange.shade700 : Colors.orange.shade100,
+                    color: _readingRulerOn
+                        ? Colors.orange.shade700
+                        : Colors.orange.shade100,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
@@ -1153,7 +1293,9 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                       Icon(
                         Icons.straighten,
                         size: 14,
-                        color: _readingRulerOn ? Colors.white : Colors.orange.shade700,
+                        color: _readingRulerOn
+                            ? Colors.white
+                            : Colors.orange.shade700,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -1161,7 +1303,9 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: _readingRulerOn ? Colors.white : Colors.orange.shade700,
+                          color: _readingRulerOn
+                              ? Colors.white
+                              : Colors.orange.shade700,
                         ),
                       ),
                     ],
