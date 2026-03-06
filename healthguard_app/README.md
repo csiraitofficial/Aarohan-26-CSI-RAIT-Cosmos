@@ -14,3 +14,9 @@ Tools • Dart 3.11.0 • DevTools 2.54.1
 cd mobile
 [fvm] flutter run
 ```
+Feature :
+1)AI Personal tutor integrated in chatbot that change pattern of answers based on past progress. by asking questions or helping to memorized it . its stores small convo in SQLite in mobile . 
+2)Heart-Rate Based Attention Monitoring
+Concept
+The system uses heart rate data from a smartwatch or wearable to detect whether a student is focused, distracted, or stressed during learning.
+When attention drops, the wearable or phone gives a gentle vibration reminder.
