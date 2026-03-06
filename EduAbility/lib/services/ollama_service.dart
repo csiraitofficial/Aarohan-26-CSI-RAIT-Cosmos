@@ -27,6 +27,9 @@ class OllamaService {
   /// Summary of the currently loaded material.
   String? currentMaterialSummary;
 
+  /// Conversation context returned by Ollama to remember previous topics.
+  List<int>? conversationContext;
+
   /// Check if Ollama is reachable (via backend proxy).
   /// Uses the lightweight /health endpoint first, falls back to /tags.
   /// Auto-rediscovers the backend URL if unreachable (WiFi network switch).
@@ -95,19 +98,24 @@ class OllamaService {
   }
 
   /// Send a chat message to Ollama (via backend proxy) and return the response.
-  Future<String> sendMessage(String userMessage, {DisabilityType disability = DisabilityType.none}) async {
+  Future<String> sendMessage(
+    String userMessage, {
+    DisabilityType disability = DisabilityType.none,
+  }) async {
     final uri = Uri.parse('$_proxyBase/generate');
 
     // Build context with disability suffix and optional material context
     String context = _systemPrompt + _disabilityPromptSuffix(disability);
     if (currentMaterialTitle != null && currentMaterialSummary != null) {
-      context += '\n\n(Student is studying: $currentMaterialTitle)\nMaterial summary: $currentMaterialSummary';
+      context +=
+          '\n\n(Student is studying: $currentMaterialTitle)\nMaterial summary: $currentMaterialSummary';
     }
 
     final payload = {
       'model': modelName,
       'prompt': '$context\n\nStudent: $userMessage\nTutor:',
       'stream': false,
+      if (conversationContext != null) 'context': conversationContext,
       'options': {
         'num_predict': 256, // cap output tokens for speed
         'temperature': 0.7,
@@ -126,6 +134,9 @@ class OllamaService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        if (data['context'] != null) {
+          conversationContext = List<int>.from(data['context']);
+        }
         final text = (data['response'] ?? '').toString().trim();
         return text.isNotEmpty
             ? text
@@ -194,5 +205,10 @@ class OllamaService {
   void clearMaterial() {
     currentMaterialTitle = null;
     currentMaterialSummary = null;
+  }
+
+  /// Clear the conversation history explicitly.
+  void clearConversation() {
+    conversationContext = null;
   }
 }
