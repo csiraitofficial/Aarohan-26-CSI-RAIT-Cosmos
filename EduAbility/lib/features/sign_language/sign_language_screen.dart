@@ -13,7 +13,7 @@ class SignLanguageScreen extends StatefulWidget {
 class _SignLanguageScreenState extends State<SignLanguageScreen>
     with SingleTickerProviderStateMixin {
   // ── Mock mode ──────────────────────────────────────────────────────────
-  final bool _isMockMode = true; // start in mock mode by default
+  final bool _isMockMode = false; // start in mock mode by default
   Timer? _mockFlexTimer;
   Timer? _mockGestureTimer;
   final Random _rng = Random();
@@ -55,6 +55,8 @@ class _SignLanguageScreenState extends State<SignLanguageScreen>
   }
 
   Future<void> _runMockSequence() async {
+    bool isFirstSequence = true;
+
     while (_isMocking && mounted) {
       if (!mounted) break;
 
@@ -69,55 +71,121 @@ class _SignLanguageScreenState extends State<SignLanguageScreen>
       await Future.delayed(const Duration(seconds: 2));
       if (!_isMocking || !mounted) break;
 
-      // 1. "you" -> index finger only
-      _setFlex([60, 800, 60, 60, 60]);
-      await Future.delayed(const Duration(milliseconds: 700));
-      setState(() => _displayedIntent = "you");
-      await Future.delayed(const Duration(seconds: 1));
-      if (!_isMocking || !mounted) break;
-
-      // 2. "like" -> middle and thumb
-      _setFlex([800, 60, 800, 60, 60]);
-      await Future.delayed(const Duration(milliseconds: 700));
-      setState(() => _displayedIntent = "you like");
-      await Future.delayed(const Duration(seconds: 1));
-      if (!_isMocking || !mounted) break;
-
-      // 3. "Learn" -> all five fingers
-      _setFlex([800, 800, 800, 800, 800]);
-      await Future.delayed(const Duration(milliseconds: 700));
-      setState(() => _displayedIntent = "you like learn");
-      await Future.delayed(const Duration(seconds: 1));
-      if (!_isMocking || !mounted) break;
-
-      // 4. "sign" -> index and thumb
-      _setFlex([800, 800, 60, 60, 60]);
-      await Future.delayed(const Duration(milliseconds: 700));
-      setState(() => _displayedIntent = "you like learn sign");
-
-      // Extended pause after the final gesture is detected
-      await Future.delayed(const Duration(milliseconds: 1500));
-      if (!_isMocking || !mounted) break;
-
-      // Sequence complete - rest the hand sensors briefly
-      _setFlex([60, 60, 60, 60, 60]);
-      await Future.delayed(const Duration(milliseconds: 800));
-      if (!_isMocking || !mounted) break;
-
-      // Give the LLM formatted message output in a typing format
-      setState(() {
-        _latestSpeech = "";
-        _isSpeechVisible = true;
-      });
-
-      const speechText = "Do you like learning sign language?";
-      for (int i = 0; i < speechText.length; i++) {
+      if (isFirstSequence) {
+        // --- SEQUENCE 1: "you like learn sign" ---
+        _setFlex([60, 800, 60, 60, 60]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "you");
+        await Future.delayed(const Duration(seconds: 1));
         if (!_isMocking || !mounted) break;
-        await Future.delayed(const Duration(milliseconds: 40));
+
+        _setFlex([800, 60, 800, 60, 60]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "you like");
+        await Future.delayed(const Duration(seconds: 1));
+        if (!_isMocking || !mounted) break;
+
+        _setFlex([800, 800, 800, 800, 800]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "you like learn");
+        await Future.delayed(const Duration(seconds: 1));
+        if (!_isMocking || !mounted) break;
+
+        _setFlex([800, 800, 60, 60, 60]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "you like learn sign");
+
+        // Extended pause
+        await Future.delayed(const Duration(milliseconds: 1500));
+        if (!_isMocking || !mounted) break;
+
+        // Relax hand
+        _setFlex([60, 60, 60, 60, 60]);
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (!_isMocking || !mounted) break;
+
         setState(() {
-          _latestSpeech += speechText[i];
+          _latestSpeech = "";
+          _isSpeechVisible = true;
         });
+
+        const speechText = "Do you like learning sign language?";
+        for (int i = 0; i < speechText.length; i++) {
+          if (!_isMocking || !mounted) break;
+          await Future.delayed(const Duration(milliseconds: 40));
+          setState(() {
+            _latestSpeech += speechText[i];
+          });
+        }
+      } else {
+        // --- SEQUENCE 2: "I always call my good friend" ---
+        // "I" -> every little finger except thumb (Index, Middle, Ring, Pinky)
+        _setFlex([60, 800, 800, 800, 800]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "I");
+        await Future.delayed(const Duration(seconds: 1));
+        if (!_isMocking || !mounted) break;
+
+        // "always" -> index + partial other fingers
+        _setFlex([60, 800, 300, 300, 300]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "I always");
+        await Future.delayed(const Duration(seconds: 1));
+        if (!_isMocking || !mounted) break;
+
+        // "call" -> thumb and pinky
+        _setFlex([800, 60, 60, 60, 800]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "I always call");
+        await Future.delayed(const Duration(seconds: 1));
+        if (!_isMocking || !mounted) break;
+
+        // "my" -> all fingers flexed a little bit
+        _setFlex([300, 300, 300, 300, 300]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "I always call my");
+        await Future.delayed(const Duration(seconds: 1));
+        if (!_isMocking || !mounted) break;
+
+        // "good" -> move thumb
+        _setFlex([800, 60, 60, 60, 60]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "I always call my good");
+        await Future.delayed(const Duration(seconds: 1));
+        if (!_isMocking || !mounted) break;
+
+        // "friend" -> all fingers
+        _setFlex([800, 800, 800, 800, 800]);
+        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() => _displayedIntent = "I always call my good friend");
+
+        // Extended pause
+        await Future.delayed(const Duration(milliseconds: 1500));
+        if (!_isMocking || !mounted) break;
+
+        // Relax hand
+        _setFlex([60, 60, 60, 60, 60]);
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (!_isMocking || !mounted) break;
+
+        // Typing effect
+        setState(() {
+          _latestSpeech = "";
+          _isSpeechVisible = true;
+        });
+
+        const speechText = "I always call my good friend.";
+        for (int i = 0; i < speechText.length; i++) {
+          if (!_isMocking || !mounted) break;
+          await Future.delayed(const Duration(milliseconds: 40));
+          setState(() {
+            _latestSpeech += speechText[i];
+          });
+        }
       }
+
+      // Toggle sequence for next loop
+      isFirstSequence = !isFirstSequence;
 
       // Keep the final result on screen for 6 seconds before looping the sequence
       await Future.delayed(const Duration(seconds: 6));
