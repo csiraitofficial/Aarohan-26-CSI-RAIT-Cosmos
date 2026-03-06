@@ -198,6 +198,18 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
           _sendMessage();
         }
       },
+      onStopped: () {
+        // Speech engine stopped on its own (timeout / pause / error).
+        // Sync the UI so the mic button isn't stuck in "recording" state.
+        if (!mounted) return;
+        if (_isRecording) {
+          setState(() => _isRecording = false);
+          // Auto-send whatever was captured
+          if (_controller.text.trim().isNotEmpty) {
+            _sendMessage();
+          }
+        }
+      },
     );
     if (!mounted) return;
     if (started) {
@@ -211,9 +223,15 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
       );
     } else {
       final l = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('❌ ${l.speechNotAvailable}')));
+      final detail = _speech.lastError ?? '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '❌ ${l.speechNotAvailable}${detail.isNotEmpty ? '\n$detail' : ''}',
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 

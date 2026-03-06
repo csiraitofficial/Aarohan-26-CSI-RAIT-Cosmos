@@ -7,6 +7,8 @@ class ApiService {
   /// Ordered list of backend URLs to try.
   /// The first one that responds wins and is used for the rest of the session.
   static const List<String> _candidates = [
+    'http://localhost:3000', // Same PC (desktop / web / Windows app)
+    'http://127.0.0.1:3000', // Same PC (explicit IPv4 loopback)
     'http://10.115.118.52:3000', // PC LAN IP (same Wi-Fi)
     'http://192.168.137.1:3000', // PC hotspot IP
     'http://10.0.2.2:3000', // Android emulator loopback
