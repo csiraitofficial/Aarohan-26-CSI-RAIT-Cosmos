@@ -13,18 +13,10 @@ class SignLanguageScreen extends StatefulWidget {
 class _SignLanguageScreenState extends State<SignLanguageScreen>
     with SingleTickerProviderStateMixin {
   // ── Mock mode ──────────────────────────────────────────────────────────
-  final bool _isMockMode = false; // start in mock mode by default
+  final bool _isMockMode = true; // start in mock mode by default
   Timer? _mockFlexTimer;
   Timer? _mockGestureTimer;
   final Random _rng = Random();
-  int _mockGestureIndex = 0;
-
-  static const List<Map<String, String>> _mockGestures = [
-    {
-      'intent': 'i tired when meeting raj',
-      'speech': 'I am tired when are we meeting raj?',
-    },
-  ];
 
   // ── 5 finger flex values: Thumb, Index, Middle, Ring, Pinky ────────────
   List<double> _flexValues = [0, 0, 0, 0, 0];
@@ -49,81 +41,97 @@ class _SignLanguageScreenState extends State<SignLanguageScreen>
     }
   }
 
-  // ── Mock data generator ────────────────────────────────────────────────
-  // ── Word-by-word animation logic ──────────────────────────────────────
-  Future<void> _animateIntent(String intent, String speech) async {
+  // ── Orchestrated Mock Animation Logic ──────────────────────────────────
+  bool _isMocking = false;
+
+  void _setFlex(List<double> targets) {
     if (!mounted) return;
-
     setState(() {
-      _displayedIntent = "";
-      _isSpeechVisible = false;
-    });
-
-    final words = intent.split(' ');
-    for (int i = 0; i < words.length; i++) {
-      if (!mounted) return;
-      await Future.delayed(const Duration(milliseconds: 500));
-      setState(() {
-        _displayedIntent = words.take(i + 1).join(' ');
+      _flexValues = List.generate(5, (i) {
+        // Add some realistic jitter to the target values
+        return (targets[i] + (_rng.nextDouble() * 100 - 50)).clamp(0.0, 1000.0);
       });
-    }
-
-    // Show speech after all words are revealed
-    if (!mounted) return;
-    await Future.delayed(const Duration(milliseconds: 2000));
-    setState(() {
-      _latestSpeech = speech;
-      _isSpeechVisible = true;
     });
   }
 
-  // ── Mock data generator ────────────────────────────────────────────────
+  Future<void> _runMockSequence() async {
+    while (_isMocking && mounted) {
+      if (!mounted) break;
+
+      setState(() {
+        _displayedIntent = "";
+        _latestSpeech = "";
+        _isSpeechVisible = false;
+        _flexValues = [0, 0, 0, 0, 0];
+      });
+
+      // Initial wait before starting sequence
+      await Future.delayed(const Duration(seconds: 2));
+      if (!_isMocking || !mounted) break;
+
+      // 1. "you" -> index finger only
+      _setFlex([60, 800, 60, 60, 60]);
+      await Future.delayed(const Duration(milliseconds: 700));
+      setState(() => _displayedIntent = "you");
+      await Future.delayed(const Duration(seconds: 1));
+      if (!_isMocking || !mounted) break;
+
+      // 2. "like" -> middle and thumb
+      _setFlex([800, 60, 800, 60, 60]);
+      await Future.delayed(const Duration(milliseconds: 700));
+      setState(() => _displayedIntent = "you like");
+      await Future.delayed(const Duration(seconds: 1));
+      if (!_isMocking || !mounted) break;
+
+      // 3. "Learn" -> all five fingers
+      _setFlex([800, 800, 800, 800, 800]);
+      await Future.delayed(const Duration(milliseconds: 700));
+      setState(() => _displayedIntent = "you like learn");
+      await Future.delayed(const Duration(seconds: 1));
+      if (!_isMocking || !mounted) break;
+
+      // 4. "sign" -> index and thumb
+      _setFlex([800, 800, 60, 60, 60]);
+      await Future.delayed(const Duration(milliseconds: 700));
+      setState(() => _displayedIntent = "you like learn sign");
+
+      // Extended pause after the final gesture is detected
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (!_isMocking || !mounted) break;
+
+      // Sequence complete - rest the hand sensors briefly
+      _setFlex([60, 60, 60, 60, 60]);
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (!_isMocking || !mounted) break;
+
+      // Give the LLM formatted message output in a typing format
+      setState(() {
+        _latestSpeech = "";
+        _isSpeechVisible = true;
+      });
+
+      const speechText = "Do you like learning sign language?";
+      for (int i = 0; i < speechText.length; i++) {
+        if (!_isMocking || !mounted) break;
+        await Future.delayed(const Duration(milliseconds: 40));
+        setState(() {
+          _latestSpeech += speechText[i];
+        });
+      }
+
+      // Keep the final result on screen for 6 seconds before looping the sequence
+      await Future.delayed(const Duration(seconds: 6));
+    }
+  }
+
   void _startMockData() {
     _stopMockData();
-
-    // Initial 2-second delay before starting mock data
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-
-      // Show the first gesture with animation immediately after the delay
-      final gesture = _mockGestures[_mockGestureIndex];
-      _animateIntent(gesture['intent']!, gesture['speech']!);
-      _mockGestureIndex = (_mockGestureIndex + 1) % _mockGestures.length;
-
-      // Update flex values with high-variance randomization for a realistic "live" look
-      _mockFlexTimer = Timer.periodic(const Duration(milliseconds: 140), (_) {
-        if (!mounted) return;
-        setState(() {
-          _flexValues = List.generate(5, (index) {
-            // Mix sine waves with different frequencies and random noise to break obvious patterns
-            final now = DateTime.now().millisecondsSinceEpoch / 1000.0;
-            final base =
-                (sin(now * (1.2 + index * 0.3)) * 0.4 +
-                        sin(now * (2.8 - index * 0.2)) * 0.2 +
-                        0.5)
-                    .clamp(0.0, 1.0);
-
-            // Add significant jitter/noise
-            double value = (base * 800) + (_rng.nextDouble() * 200 - 100);
-            return value.clamp(0.0, 1000.0);
-          });
-        });
-      });
-
-      // Cycle through gestures every 11 seconds
-      _mockGestureTimer = Timer.periodic(const Duration(seconds: 11), (timer) {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-        final gesture = _mockGestures[_mockGestureIndex];
-        _animateIntent(gesture['intent']!, gesture['speech']!);
-        _mockGestureIndex = (_mockGestureIndex + 1) % _mockGestures.length;
-      });
-    });
+    _isMocking = true;
+    _runMockSequence();
   }
 
   void _stopMockData() {
+    _isMocking = false;
     _mockFlexTimer?.cancel();
     _mockFlexTimer = null;
     _mockGestureTimer?.cancel();
