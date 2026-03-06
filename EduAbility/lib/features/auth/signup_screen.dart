@@ -22,6 +22,8 @@ const _kCategories = [
   _HealthCategory('heart', Icons.favorite_border),
   _HealthCategory('asthma', Icons.air),
   _HealthCategory('anxiety', Icons.self_improvement),
+  _HealthCategory('adhd', Icons.track_changes),
+  _HealthCategory('dyslexia', Icons.menu_book),
   _HealthCategory('disability', Icons.accessible),
   _HealthCategory('surgery', Icons.healing),
   _HealthCategory('elderly', Icons.elderly),
@@ -49,6 +51,10 @@ String _categoryLabel(AppLocalizations l, String id) {
       return l.catAsthma;
     case 'anxiety':
       return l.catAnxiety;
+    case 'adhd':
+      return 'ADHD';
+    case 'dyslexia':
+      return 'Dyslexia';
     case 'disability':
       return l.catDisability;
     case 'surgery':

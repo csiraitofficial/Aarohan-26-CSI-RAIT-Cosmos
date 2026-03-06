@@ -181,6 +181,67 @@ class HealthService {
     }
   }
 
+  /// Generate rich demo vitals in-memory (no Health Connect needed).
+  static UserVitals generateDemoVitals() {
+    final now = DateTime.now();
+    final seed = now.millisecondsSinceEpoch;
+
+    // Heart rate: 24 hourly readings
+    final heartRates = List.generate(24, (i) {
+      final ts = now.subtract(Duration(hours: 23 - i));
+      int base = (i < 7 || i > 22) ? 62 : 78;
+      int val = base + ((seed + i * 17) % 20) - 10;
+      return VitalReading<int>(ts, val.clamp(50, 130));
+    });
+
+    // Blood pressure: 8 readings
+    final bloodPressures = List.generate(8, (i) {
+      final ts = now.subtract(Duration(hours: (7 - i) * 3));
+      int sys = 118 + ((seed + i * 23) % 20) - 10;
+      int dia = 76 + ((seed + i * 31) % 14) - 7;
+      return BloodPressureReading(
+        timestamp: ts,
+        systolic: sys.clamp(90, 160),
+        diastolic: dia.clamp(60, 100),
+      );
+    });
+
+    // Glucose: 10 readings with post-meal spikes
+    final bloodGlucose = List.generate(10, (i) {
+      final ts = now.subtract(Duration(hours: (9 - i) * 2 + 1));
+      double base = (i == 2 || i == 5 || i == 8) ? 130.0 : 92.0;
+      double val = base + ((seed + i * 41) % 20) - 10;
+      return VitalReading<double>(ts, val.clamp(55.0, 250.0));
+    });
+
+    // Sleep: 7 days
+    final sleepSessions = List.generate(7, (i) {
+      final ts = now.subtract(Duration(days: 6 - i));
+      int mins = 360 + ((seed + i * 53) % 180);
+      return VitalReading<int>(ts, mins.clamp(240, 600));
+    });
+
+    final steps = [VitalReading<int>(now, 6500 + (seed % 4000))];
+    final calories = [VitalReading<double>(now, 250.0 + (seed % 200))];
+    final activeMinutes = [VitalReading<int>(now, 25 + (seed % 40))];
+
+    // Sort newest first
+    heartRates.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    bloodPressures.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    bloodGlucose.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    sleepSessions.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    return UserVitals(
+      heartRates: heartRates,
+      bloodPressures: bloodPressures,
+      bloodGlucose: bloodGlucose,
+      sleepSessionsMinutes: sleepSessions,
+      steps: steps,
+      caloriesBurned: calories,
+      activeMinutes: activeMinutes,
+    );
+  }
+
   Future<bool> writeMockData() async {
     final now = DateTime.now();
     try {

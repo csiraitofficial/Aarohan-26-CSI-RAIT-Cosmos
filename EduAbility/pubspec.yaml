@@ -51,6 +51,8 @@ dependencies:
   vibration: ^3.1.7
   web_socket_channel: ^3.0.3
   file_picker: ^8.1.7
+  syncfusion_flutter_charts: ^28.1.33
+  syncfusion_flutter_gauges: ^28.1.33
 
 dev_dependencies:
   flutter_test:

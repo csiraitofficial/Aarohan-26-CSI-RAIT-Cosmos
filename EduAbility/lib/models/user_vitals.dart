@@ -26,8 +26,8 @@ class UserVitals {
   double get todayCalories =>
       caloriesBurned.isNotEmpty ? caloriesBurned.first.value : 0.0;
 
-  // Hardcoded active minutes
-  int get todayActiveMinutes => 120;
+  int get todayActiveMinutes =>
+      activeMinutes.isNotEmpty ? activeMinutes.first.value : 0;
 
   int get todaySleepMinutes =>
       sleepSessionsMinutes.isNotEmpty ? sleepSessionsMinutes.first.value : 0;

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 import '../../services/health_service.dart';
+import '../../services/disability_provider.dart';
 import '../../models/user_vitals.dart';
+import 'vitals_dashboard_screen.dart';
 
 class VitalsScreen extends StatefulWidget {
   final VoidCallback? onTestEmergency;
@@ -32,17 +35,17 @@ class _VitalsScreenState extends State<VitalsScreen> {
 
     final now = DateTime.now();
     final vitals = await _healthService.fetchAllVitals(
-      startTime: now.subtract(const Duration(days: 1)),
+      startTime: now.subtract(const Duration(days: 7)),
       endTime: now,
     );
 
     if (mounted) {
-      final l = AppLocalizations.of(context)!;
       setState(() {
-        _vitals = vitals;
+        // Use real data if available, otherwise fallback to demo
+        _vitals = vitals ?? HealthService.generateDemoVitals();
         _isLoading = false;
         if (vitals == null) {
-          _status = l.authorizeHealthConnect;
+          _status = 'Using demo data (Health Connect unavailable)';
         }
       });
     }
@@ -67,26 +70,11 @@ class _VitalsScreenState extends State<VitalsScreen> {
     }
   }
 
-  Widget _buildVitalTile(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withAlpha(26), // ~0.1 opacity
-          child: Icon(icon, color: color),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        trailing: Text(
-          value,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
+  void _loadDemoData() {
+    setState(() {
+      _vitals = HealthService.generateDemoVitals();
+      _status = 'Demo data loaded';
+    });
   }
 
   @override
@@ -100,6 +88,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // Test emergency alert button
                   if (widget.onTestEmergency != null) ...[
                     InkWell(
                       onTap: widget.onTestEmergency,
@@ -116,7 +105,11 @@ class _VitalsScreenState extends State<VitalsScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.science, color: Colors.red.shade700, size: 28),
+                            Icon(
+                              Icons.science,
+                              color: Colors.red.shade700,
+                              size: 28,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -140,108 +133,221 @@ class _VitalsScreenState extends State<VitalsScreen> {
                                 ],
                               ),
                             ),
-                            Icon(Icons.chevron_right, color: Colors.red.shade400),
+                            Icon(
+                              Icons.chevron_right,
+                              color: Colors.red.shade400,
+                            ),
                           ],
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
                   ],
-                  Text(
-                    l.dailyStats,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+
+                  // Disability profile selector
+                  Consumer<DisabilityProvider>(
+                    builder: (context, dp, _) {
+                      final disability = dp.disability;
+                      final color = _disabilityColor(disability);
+                      return Container(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 2,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              color.withOpacity(0.2),
+                              color.withOpacity(0.05),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: color.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.accessibility_new_rounded,
+                                  color: color,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Disability Profile',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: color.withOpacity(1.0),
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                    if (disability != DisabilityType.none)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 4.0,
+                                        ),
+                                        child: Text(
+                                          _disabilityDescription(disability),
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: color.withOpacity(0.8),
+                                            height: 1.2,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).cardColor.withOpacity(0.8),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: color.withOpacity(0.4),
+                                  ),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<DisabilityType>(
+                                    value: disability,
+                                    isDense: true,
+                                    icon: Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      size: 20,
+                                      color: color,
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: color,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    items: DisabilityType.values.map((type) {
+                                      return DropdownMenuItem(
+                                        value: type,
+                                        child: Text(
+                                          DisabilityProvider.labels[type]!,
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      if (value != null)
+                                        dp.setDisability(value);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 16),
-                  if (_vitals != null) ...[
-                    _buildVitalTile(
-                      l.steps,
-                      '${_vitals!.todaySteps}',
-                      Icons.directions_walk,
-                      Colors.teal,
-                    ),
-                    _buildVitalTile(
-                      l.calories,
-                      '${_vitals!.todayCalories.toStringAsFixed(1)} kcal',
-                      Icons.local_fire_department,
-                      Colors.orange,
-                    ),
-                    _buildVitalTile(
-                      l.activeMinutes,
-                      '${_vitals!.todayActiveMinutes} min',
-                      Icons.timer,
-                      Colors.green,
-                    ),
-                    const Divider(height: 32),
-                    Text(
-                      l.latestReadings,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                  const SizedBox(height: 12),
+
+                  // Dashboard content
+                  if (_vitals != null)
+                    VitalsDashboardScreen(vitals: _vitals!)
+                  else
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.monitor_heart_outlined,
+                              size: 64,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withOpacity(0.4),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              l.noDataFound,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withOpacity(0.7),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    _buildVitalTile(
-                      l.heartRate,
-                      _vitals!.latestHeartRate,
-                      Icons.favorite,
-                      Colors.red,
-                    ),
-                    _buildVitalTile(
-                      l.bloodPressure,
-                      _vitals!.latestBloodPressure,
-                      Icons.speed,
-                      Colors.blue,
-                    ),
-                    _buildVitalTile(
-                      l.glucose,
-                      _vitals!.latestGlucose,
-                      Icons.bloodtype,
-                      Colors.purple,
-                    ),
-                    _buildVitalTile(
-                      l.sleep,
-                      _vitals!.latestSleep,
-                      Icons.nights_stay,
-                      Colors.indigo,
-                    ),
-                    _buildVitalTile(
-                      l.spo2,
-                      _vitals!.latestSpo2,
-                      Icons.air,
-                      Colors.cyan,
-                    ),
-                    _buildVitalTile(
-                      l.stress,
-                      _vitals!.latestStress,
-                      Icons.psychology,
-                      Colors.amber,
-                    ),
-                  ] else ...[
-                    Center(child: Text(l.noDataFound)),
-                  ],
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: _fetchVitals,
-                    icon: const Icon(Icons.refresh),
-                    label: Text(l.refreshData),
+
+                  const SizedBox(height: 16),
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _fetchVitals,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: Text(l.refreshData),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _loadDemoData,
+                          icon: const Icon(Icons.auto_graph, size: 18),
+                          label: const Text('Demo Data'),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: _writeMockData,
-                    icon: const Icon(Icons.add),
+                    icon: const Icon(Icons.add, size: 18),
                     label: Text(l.insertMockData),
                   ),
                   if (_status.isNotEmpty) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     Text(
                       _status,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: _status.contains('fail')
+                        color:
+                            _status.contains('fail') || _status.contains('Fail')
                             ? Colors.red
                             : Colors.green,
                         fontWeight: FontWeight.bold,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -249,5 +355,35 @@ class _VitalsScreenState extends State<VitalsScreen> {
               ),
             ),
     );
+  }
+
+  Color _disabilityColor(DisabilityType type) {
+    switch (type) {
+      case DisabilityType.autistic:
+        return Colors.teal;
+      case DisabilityType.adhd:
+        return Colors.deepPurple;
+      case DisabilityType.dyslexia:
+        return Colors.deepOrange;
+      case DisabilityType.deafMute:
+        return Colors.blueAccent;
+      case DisabilityType.none:
+        return Colors.indigo;
+    }
+  }
+
+  String _disabilityDescription(DisabilityType type) {
+    switch (type) {
+      case DisabilityType.autistic:
+        return 'Sensory events + Routine adherence charts';
+      case DisabilityType.adhd:
+        return 'Focus sessions + Task completion charts';
+      case DisabilityType.dyslexia:
+        return 'Reading sessions + Word fluency charts';
+      case DisabilityType.deafMute:
+        return 'Communication logs + Sign practice charts';
+      case DisabilityType.none:
+        return '';
+    }
   }
 }
