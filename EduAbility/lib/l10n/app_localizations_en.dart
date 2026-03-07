@@ -681,7 +681,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Medication & Appointment Reminders\n(Coming soon)';
 
   @override
-  String get explainSimplyPrompt => 'Please explain this in simpler words';
+  String get explainSimplyPrompt =>
+      'Please explain what we just discussed in simpler words';
 
   @override
   String get quizMePrompt => 'Ask me 3 questions about what we just discussed';

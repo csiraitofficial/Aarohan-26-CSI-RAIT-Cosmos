@@ -240,7 +240,7 @@
 
   "remindersComingSoon": "Medication & Appointment Reminders\n(Coming soon)",
 
-  "explainSimplyPrompt": "Please explain this in simpler words",
+  "explainSimplyPrompt": "Please explain what we just discussed in simpler words",
   "quizMePrompt": "Ask me 3 questions about what we just discussed",
   "summarizePrompt": "Summarize what we've covered so far"
 }

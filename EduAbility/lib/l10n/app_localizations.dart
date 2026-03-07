@@ -1393,7 +1393,7 @@ abstract class AppLocalizations {
   /// No description provided for @explainSimplyPrompt.
   ///
   /// In en, this message translates to:
-  /// **'Please explain this in simpler words'**
+  /// **'Please explain what we just discussed in simpler words'**
   String get explainSimplyPrompt;
 
   /// No description provided for @quizMePrompt.

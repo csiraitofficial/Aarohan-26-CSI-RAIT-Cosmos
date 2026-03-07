@@ -244,7 +244,9 @@ class _OfflineAiScreenState extends State<OfflineAiScreen> {
   void _fillQuickAction(String text) {
     _controller.text = text;
     // Advance autistic step to Quiz when quiz action is used
-    if (text.toLowerCase().contains('quiz') && _autisticStep < 2) {
+    final lowerText = text.toLowerCase();
+    if ((lowerText.contains('quiz') || lowerText.contains('question')) &&
+        _autisticStep < 2) {
       setState(() => _autisticStep = 2);
     }
   }
